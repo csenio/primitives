@@ -127,17 +127,6 @@ const MenuSub: React.FC<MenuSubOwnProps> = (props) => {
     if (focusFirst) content?.focus();
   }, [content, focusFirst]);
 
-  React.useEffect(() => {
-    const parentContent = context.content;
-    const handleParentItemEnter = (event: Event) => {
-      if (event.target !== trigger) handleOpenChange(false);
-    };
-    if (parentContent) {
-      parentContent.addEventListener(ITEM_ENTER, handleParentItemEnter);
-      return () => parentContent.removeEventListener(ITEM_ENTER, handleParentItemEnter);
-    }
-  }, [trigger, context.content, handleOpenChange]);
-
   return (
     <PopperPrimitive.Root>
       <MenuProvider
@@ -159,8 +148,8 @@ const MenuSub: React.FC<MenuSubOwnProps> = (props) => {
           [focusFirst]
         )}
         onKeyOpen={React.useCallback(() => {
-          handleOpenChange(true);
           setFocusFirst(true);
+          handleOpenChange(true);
         }, [handleOpenChange])}
       >
         {children}
@@ -334,14 +323,14 @@ const MenuSubContent = React.forwardRef((props, forwardedRef) => {
       // The menu might close because of focusing another menu item in the parent menu. We
       // don't want it to refocus the trigger in that case so we handle trigger focus ourselves.
       onCloseAutoFocus={(event) => event.preventDefault()}
-      onFocusLeave={composeEventHandlers(props.onFocusLeave, (event) => {
+      onFocusOutside={(event) => {
         // We prevent closing when the trigger is focused to avoid triggering a re-open animation
         // on pointer interaction.
-        if (event.relatedTarget !== context.trigger) context.onOpenChange(false);
-      })}
+        if (event.target !== context.trigger) context.onOpenChange(false);
+      }}
       onEscapeKeyDown={composeEventHandlers(props.onEscapeKeyDown, () => {
         // We need to explicitly close when escape key focuses trigger because we prevented this
-        // in onFocusLeave for pointers.
+        // in on focus outside for pointers.
         context.onOpenChange(false);
         context.trigger?.focus();
       })}
@@ -352,10 +341,13 @@ const MenuSubContent = React.forwardRef((props, forwardedRef) => {
         const isCloseKey = SUB_CLOSE_KEYS[context.dir].includes(event.key);
         if (isKeyDownInside && isCloseKey) {
           // We need to explicitly close when keyboard focuses trigger because we prevented this
-          // in onFocusLeave for pointers.
+          // in on focus outside for pointers.
           context.onOpenChange(false);
           context.trigger?.focus();
         }
+      })}
+      onPointerDownOutside={composeEventHandlers(props.onPointerDownOutside, () => {
+        context.onOpenChange(false);
       })}
     />
   ) : null;
@@ -370,6 +362,7 @@ type RovingFocusGroupOwnProps = Polymorphic.OwnProps<typeof RovingFocusGroup>;
 type MenuContentImplPrivateProps = {
   onEntryFocus: RovingFocusGroupOwnProps['onEntryFocus'];
   onDismiss?: DismissableLayerOwnProps['onDismiss'];
+  onFocusOutside?(event: FocusEvent): void;
 };
 
 type MenuContentImplOwnProps = Polymorphic.Merge<
@@ -435,6 +428,7 @@ const MenuContentImpl = React.forwardRef((props, forwardedRef) => {
     onEscapeKeyDown,
     onPointerDownOutside,
     onFocusLeave,
+    onFocusOutside,
     onEntryFocus,
     onDismiss,
     disableOutsideScroll,
@@ -451,6 +445,7 @@ const MenuContentImpl = React.forwardRef((props, forwardedRef) => {
 
   const PortalWrapper = portalled ? Portal : React.Fragment;
   const ScrollLockWrapper = disableOutsideScroll ? RemoveScroll : React.Fragment;
+  const focusOutsideProps = useFocusOutside(onFocusOutside);
 
   // Make sure the whole tree has focus guards as our `MenuContent` may be
   // the last element in the DOM (beacuse of the `Portal`)
@@ -522,6 +517,14 @@ const MenuContentImpl = React.forwardRef((props, forwardedRef) => {
                   {...contentProps}
                   ref={composedRefs}
                   style={{ outline: 'none', ...contentProps.style }}
+                  onFocusCapture={composeEventHandlers(
+                    contentProps.onFocusCapture,
+                    focusOutsideProps.onFocusCapture
+                  )}
+                  onBlurCapture={composeEventHandlers(
+                    contentProps.onBlurCapture,
+                    focusOutsideProps.onBlurCapture
+                  )}
                   onKeyDownCapture={composeEventHandlers(
                     contentProps.onKeyDownCapture,
                     typeaheadProps.onKeyDownCapture
@@ -558,7 +561,6 @@ MenuContent.displayName = CONTENT_NAME;
 const ITEM_NAME = 'MenuItem';
 const ITEM_DEFAULT_TAG = 'div';
 const ITEM_SELECT = 'menu.itemSelect';
-const ITEM_ENTER = 'menu.itemEnter';
 
 type MenuItemOwnProps = Polymorphic.Merge<
   Polymorphic.OwnProps<typeof MenuItemImpl>,
@@ -652,11 +654,6 @@ const MenuItemImpl = React.forwardRef((props, forwardedRef) => {
     disabled,
   });
 
-  const handleItemEnter = (event: React.MouseEvent | React.FocusEvent) => {
-    const itemEnterEvent = new Event(ITEM_ENTER, { bubbles: true, cancelable: true });
-    event.currentTarget.dispatchEvent(itemEnterEvent);
-  };
-
   return (
     <CollectionItemSlot disabled={disabled}>
       <RovingFocusItem
@@ -668,7 +665,6 @@ const MenuItemImpl = React.forwardRef((props, forwardedRef) => {
         {...menuTypeaheadItemProps}
         as={as}
         ref={composedRefs}
-        onFocus={composeEventHandlers(props.onFocus, handleItemEnter)}
         /**
          * We focus items on `mouseMove` to achieve the following:
          *
@@ -681,7 +677,6 @@ const MenuItemImpl = React.forwardRef((props, forwardedRef) => {
          * wiggles. This is to match native menu implementation.
          */
         onMouseMove={composeEventHandlers(props.onMouseMove, (event) => {
-          handleItemEnter(event);
           if (!disabled) {
             const item = event.currentTarget;
             item.focus();
@@ -885,6 +880,26 @@ function focusFirst(candidates: HTMLElement[]) {
     candidate.focus();
     if (document.activeElement !== PREVIOUSLY_FOCUSED_ELEMENT) return;
   }
+}
+
+/**
+ * Listens for when focus happens outside a react subtree.
+ * Returns props to pass to the root (node) of the subtree we want to check.
+ */
+function useFocusOutside(onFocusOutside?: (event: FocusEvent) => void) {
+  const handleFocusOutside = useCallbackRef(onFocusOutside);
+  const isFocusInsideReactTreeRef = React.useRef(false);
+  React.useEffect(() => {
+    const handleFocus = (event: FocusEvent) => {
+      if (!isFocusInsideReactTreeRef.current) handleFocusOutside(event);
+    };
+    document.addEventListener('focusin', handleFocus);
+    return () => document.removeEventListener('focusin', handleFocus);
+  }, [handleFocusOutside]);
+  return {
+    onFocusCapture: () => (isFocusInsideReactTreeRef.current = true),
+    onBlurCapture: () => (isFocusInsideReactTreeRef.current = false),
+  };
 }
 
 const Root = Menu;
