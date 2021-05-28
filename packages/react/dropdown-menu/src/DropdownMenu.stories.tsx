@@ -49,6 +49,82 @@ export const Styled = () => (
   </div>
 );
 
+export const Submenus = () => {
+  const [rtl, setRtl] = React.useState(false);
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200vh' }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <label style={{ marginBottom: 10 }}>
+          <input
+            type="checkbox"
+            checked={rtl}
+            onChange={(event) => setRtl(event.currentTarget.checked)}
+          />
+          Right-to-left
+        </label>
+        <DropdownMenu dir={rtl ? 'rtl' : 'ltr'}>
+          <DropdownMenuTrigger className={triggerClass}>Open</DropdownMenuTrigger>
+          <DropdownMenuContent className={contentClass} sideOffset={5}>
+            <DropdownMenuItem className={itemClass} onSelect={() => console.log('undo')}>
+              Undo
+            </DropdownMenuItem>
+            <DropdownMenuItem className={itemClass} onSelect={() => console.log('redo')}>
+              Redo
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className={separatorClass} />
+            <DropdownMenu>
+              <DropdownMenuTrigger className={itemClass}>Submenu →</DropdownMenuTrigger>
+              <DropdownMenuContent className={contentClass} sideOffset={12}>
+                <DropdownMenuItem className={itemClass} onSelect={() => console.log('one')}>
+                  One
+                </DropdownMenuItem>
+
+                <DropdownMenuItem className={itemClass} onSelect={() => console.log('two')}>
+                  Two
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className={separatorClass} />
+                <DropdownMenu>
+                  <DropdownMenuTrigger className={itemClass}>Submenu →</DropdownMenuTrigger>
+                  <DropdownMenuContent className={contentClass} sideOffset={12}>
+                    <DropdownMenuItem className={itemClass} onSelect={() => console.log('one')}>
+                      One
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className={itemClass} onSelect={() => console.log('two')}>
+                      Two
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className={itemClass} onSelect={() => console.log('three')}>
+                      Three
+                    </DropdownMenuItem>
+                    <DropdownMenuArrow offset={8} />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenuSeparator className={separatorClass} />
+                <DropdownMenuItem className={itemClass} onSelect={() => console.log('three')}>
+                  Three
+                </DropdownMenuItem>
+                <DropdownMenuArrow offset={8} />
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenuSeparator className={separatorClass} />
+            <DropdownMenuItem className={itemClass} disabled onSelect={() => console.log('cut')}>
+              Cut
+            </DropdownMenuItem>
+            <DropdownMenuItem className={itemClass} onSelect={() => console.log('copy')}>
+              Copy
+            </DropdownMenuItem>
+            <DropdownMenuItem className={itemClass} onSelect={() => console.log('paste')}>
+              Paste
+            </DropdownMenuItem>
+            <DropdownMenuArrow />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+};
+
 export const WithLabels = () => (
   <div style={{ textAlign: 'center', padding: 50 }}>
     <DropdownMenu>
